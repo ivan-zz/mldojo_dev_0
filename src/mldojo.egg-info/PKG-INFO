@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: mldojo
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: ipykernel>=7.2.0
+Requires-Dist: langchain>=1.2.15
+Requires-Dist: langchain-community>=0.4.1
+Requires-Dist: langchain-openai>=1.1.12
+Requires-Dist: langchain-tavily>=0.2.18
+Requires-Dist: langfuse>=4.2.0
+Requires-Dist: langgraph>=1.1.6
+Requires-Dist: pandas>=3.0.2
+Requires-Dist: python-dotenv>=1.2.2
+Requires-Dist: tavily-python>=0.7.23
