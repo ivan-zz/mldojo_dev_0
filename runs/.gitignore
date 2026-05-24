@@ -1,0 +1,89 @@
+snippets_0.ipynb
+
+
+# =========================
+# Python Core & Packaging
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+wheels/
+*.egg-info/
+.eggs/
+
+# =========================
+# Environments
+# =========================
+.venv/
+env/
+venv/
+ENV/
+
+# =========================
+# Environment Variables & Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Data, Caches & Outputs (MLE-STAR Specific)
+# =========================
+# Ignore downloaded Kaggle datasets and temporary sandbox files
+data/input/*
+!data/input/.gitkeep
+
+# 
+data/generated_scripts/*
+!data/input/.gitkeep
+
+# Ignore LLM JSON checkpoints to prevent committing bulky/stale state
+data/checkpoints/*
+!data/checkpoints/.gitkeep
+
+# Ignore temporary Docker execution directories or outputs
+data/output/*
+!data/output/.gitkeep
+tmp/
+temp/
+
+# Ignore Langfuse/Loguru logs
+logs/
+*.log
+!runs/_dev/dev.log
+# Ignore run artifacts (checkpoints, logs)
+runs/
+
+# =========================
+# Jupyter Notebooks
+# =========================
+.ipynb_checkpoints/
+*.ipynb[_-]bck
+
+# =========================
+# Testing & Tooling
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# IDEs & OS Specific
+# =========================
+# Cursor / VS Code
+.vscode/
+*.code-workspace
+.cursor/
+
+# macOS / Windows
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+$RECYCLE.BIN/
