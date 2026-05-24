@@ -747,7 +747,7 @@ class TestConfigDefaults:
     def test_s9_39_execution_timeout_default(self):
         from src.mle_star.config import EXECUTION_TIMEOUT
 
-        assert EXECUTION_TIMEOUT == 900
+        assert EXECUTION_TIMEOUT == 180
 
     def test_s9_40_max_ensemble_rounds(self):
         from src.mle_star.config import MAX_ENSEMBLE_ROUNDS

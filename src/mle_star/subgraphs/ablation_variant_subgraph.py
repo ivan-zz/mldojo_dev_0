@@ -28,6 +28,7 @@ from src.mle_star.state.shared import (
     _default_llm_config,
     parse_code_block,
     parse_score,
+    failure_score,
 )
 from src.mle_star.nodes.execution import execute_code
 from src.mle_star.prompts.robustness import DEBUG_PROMPT
@@ -85,6 +86,8 @@ def eval_ablation_variant(state: AblationVariantState) -> AblationVariantState:
 
     result = execute_code(variant_code)
 
+    state["execution_exit_code"] = result.get("exit_code", -1)
+
     if result.get("status") != "ok":
         stderr = result.get("stderr", "Unknown execution error")
         if attempts < MAX_ABLATION_DEBUG_RETRIES:
@@ -100,7 +103,9 @@ def eval_ablation_variant(state: AblationVariantState) -> AblationVariantState:
         else:
             state["execution_output"] = result.get("stdout", "")
             state["execution_error"] = None
-            state["execution_score"] = 999.0
+            state["execution_score"] = failure_score(
+                state.get("metric_direction", "minimize")
+            )
             state["status"] = "ok"
             log_node_event(
                 "eval_ablation_variant",
@@ -119,7 +124,9 @@ def eval_ablation_variant(state: AblationVariantState) -> AblationVariantState:
         else:
             state["execution_output"] = result.get("stdout", "")
             state["execution_error"] = None
-            state["execution_score"] = 999.0
+            state["execution_score"] = failure_score(
+                state.get("metric_direction", "minimize")
+            )
             state["status"] = "ok"
         return state
 
@@ -167,6 +174,8 @@ def A11__debug_ablation_variant(state: AblationVariantState) -> AblationVariantS
 
     variant_code = state.get("variant_code", "")
     execution_error = state.get("execution_error", "")
+    execution_output = state.get("execution_output", "")
+    exit_code = state.get("execution_exit_code", -1)
     attempts = state.get("attempts", 0)
 
     error_class = _classify_error(str(execution_error), code=variant_code)
@@ -187,8 +196,9 @@ def A11__debug_ablation_variant(state: AblationVariantState) -> AblationVariantS
         prompt = DEBUG_PROMPT.format(
             task_desc=state.get("variant_name", "ablation variant"),
             code=variant_code,
+            exit_code=exit_code,
             error_message=f"[{error_type}] {execution_error or 'Unknown error'}\nSuggestion: {error_suggestion}",
-            stderr="",
+            stdout_output=execution_output[:500] if execution_output else "(no output)",
             metric="score",
         )
 

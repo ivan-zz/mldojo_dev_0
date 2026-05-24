@@ -18,6 +18,7 @@ from src.mle_star.state.shared import (
     log_node_event,
     call_llm,
     _default_llm_config,
+    LLMConfig,
     parse_code_block,
     parse_json_response,
 )
@@ -85,9 +86,17 @@ def A_test__submit(state: dict) -> dict:
     )
 
     try:
-        response = call_llm(
-            prompt, response_format="code", config=_default_llm_config()
+        base_config = _default_llm_config()
+        submission_config = LLMConfig(
+            provider=base_config.provider,
+            model=base_config.model,
+            base_url=base_config.base_url,
+            api_key=base_config.api_key,
+            temperature=base_config.temperature,
+            max_tokens=16384,
+            timeout=base_config.timeout,
         )
+        response = call_llm(prompt, response_format="code", config=submission_config)
         code = parse_code_block(response)
     except Exception as e:
         log_node_event(
@@ -232,9 +241,7 @@ def subsampling_remove(state: dict) -> dict:
     )
 
     try:
-        response = call_llm(
-            prompt, response_format="code", config=_default_llm_config()
-        )
+        response = call_llm(prompt, response_format="code", config=submission_config)
         updated_code = parse_code_block(response)
     except Exception as e:
         log_node_event(

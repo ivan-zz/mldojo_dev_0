@@ -8,6 +8,7 @@ src/mldojo.egg-info/top_level.txt
 src/mle_star/__init__.py
 src/mle_star/config.py
 src/mle_star/graph.py
+src/mle_star/search_cache.py
 src/mle_star/supervisor.py
 src/mle_star/algorithms/__init__.py
 src/mle_star/algorithms/algorithm_1.py
@@ -29,6 +30,7 @@ src/mle_star/prompts/refinement.py
 src/mle_star/prompts/robustness.py
 src/mle_star/prompts/search.py
 src/mle_star/prompts/submission.py
+src/mle_star/prompts/verification.py
 src/mle_star/state/__init__.py
 src/mle_star/state/alg1_state.py
 src/mle_star/state/alg2_state.py
@@ -45,8 +47,14 @@ src/mle_star/subgraphs/merge_subgraph.py
 src/mle_star/subgraphs/parallel_pipeline_subgraph.py
 src/mle_star/subgraphs/refinement_subgraph.py
 src/mle_star/subgraphs/submission_subgraph.py
+tests/test_pipeline_fixes.py
 tests/test_stage_1.py
+tests/test_stage_10.py
 tests/test_stage_2.py
 tests/test_stage_3.py
 tests/test_stage_4a.py
 tests/test_stage_5.py
+tests/test_stage_6.py
+tests/test_stage_7.py
+tests/test_stage_8.py
+tests/test_stage_9.py

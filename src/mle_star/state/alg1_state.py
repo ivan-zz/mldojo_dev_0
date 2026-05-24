@@ -61,6 +61,7 @@ class CandidateState(TypedDict):
         leakage_fix_attempts: Number of data leakage fix attempts.
         execution_output: Stdout from subprocess execution.
         execution_error: Stderr from subprocess execution, or None.
+        execution_exit_code: Process exit code from subprocess (-1=timeout/killed).
         sub_events: List of sub-events from retry loops.
         status: Current status ('pending', 'ok', 'usage_fail', 'leakage_fail', 'crashed', 'error').
     """
@@ -78,6 +79,7 @@ class CandidateState(TypedDict):
     leakage_fix_attempts: int
     execution_output: str
     execution_error: Optional[str]
+    execution_exit_code: int
     sub_events: List[Dict]
     status: str
 
@@ -114,6 +116,7 @@ class MergeState(TypedDict):
     leakage_fix_attempts: int
     execution_output: str
     execution_error: Optional[str]
+    execution_exit_code: int
     sub_events: List[Dict]
     status: str
 

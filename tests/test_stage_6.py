@@ -547,11 +547,20 @@ class TestMainCLI:
         args = argparse.Namespace(
             max_full_cycles=3,
             num_parallel_solutions=2,
+            max_outer_steps=4,
+            max_inner_steps=4,
+            max_ensemble_rounds=5,
+            max_debug_retries=3,
+            max_ablation_debug_retries=3,
+            execution_timeout=180,
             fast=False,
         )
         config = _build_config(args)
         assert config.max_full_cycles == 3
         assert config.num_parallel_solutions == 2
+        assert config.max_outer_steps == 4
+        assert config.max_inner_steps == 4
+        assert config.max_ensemble_rounds == 5
 
     def test_s6_28_build_config_fast_mode(self):
         import argparse
@@ -560,6 +569,12 @@ class TestMainCLI:
         args = argparse.Namespace(
             max_full_cycles=3,
             num_parallel_solutions=2,
+            max_outer_steps=4,
+            max_inner_steps=4,
+            max_ensemble_rounds=5,
+            max_debug_retries=3,
+            max_ablation_debug_retries=3,
+            execution_timeout=180,
             fast=True,
         )
         config = _build_config(args)

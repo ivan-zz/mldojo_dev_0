@@ -109,7 +109,19 @@ def A4__generate_ablation(state: dict) -> dict:
             functional_blocks=func_blocks_str,
             previous_summaries=previous_summaries_str,
         )
-        response = call_llm(prompt, response_format="json")
+        from src.mle_star.state.shared import LLMConfig, _default_llm_config
+
+        base_config = _default_llm_config()
+        ablation_config = LLMConfig(
+            provider=base_config.provider,
+            model=base_config.model,
+            base_url=base_config.base_url,
+            api_key=base_config.api_key,
+            temperature=base_config.temperature,
+            max_tokens=8192,
+            timeout=base_config.timeout,
+        )
+        response = call_llm(prompt, response_format="json", config=ablation_config)
         parsed = parse_json_response(response)
         ablation_scripts = parsed.get("ablation_scripts", [])
         if not ablation_scripts:

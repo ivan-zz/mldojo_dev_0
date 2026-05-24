@@ -1,0 +1,12 @@
+{
+  "status": "error",
+  "exit_code": 0,
+  "score": null,
+  "timeout": 180,
+  "stdout_len": 2,
+  "stderr_len": 0,
+  "stdout_preview": "1\n",
+  "stderr_preview": "",
+  "traceback": "",
+  "work_dir": null
+}

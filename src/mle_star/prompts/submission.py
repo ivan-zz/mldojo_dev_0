@@ -26,10 +26,7 @@ INSTRUCTIONS:
 6. Make sure the final score is printed as: Final Validation Performance: <score>
 7. Handle edge cases: missing values, unseen categories, etc.
 
-Return ONLY the clean submission script in a code block:
-```python
-# final submission script
-```"""
+Return ONLY the clean submission script. Do NOT wrap it in markdown code fences. Start your response directly with "import" or "from"."""
 
 SUBSAMPLING_EXTRACT_PROMPT = """You are analyzing an ML script to identify any data subsampling that was used for faster iteration during development.
 
@@ -80,7 +77,4 @@ INSTRUCTIONS:
 4. The script must still produce Final Validation Performance: <score>
 5. For multi-target prediction, keep handling for all targets.
 
-Return ONLY the modified Python script in a code block:
-```python
-# full-data version
-```"""
+Return ONLY the modified Python script. Do NOT wrap it in markdown code fences. Start your response directly with "import" or "from"."""

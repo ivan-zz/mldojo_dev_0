@@ -39,7 +39,7 @@ class SupervisorConfig:
     max_ensemble_rounds: int = MAX_ENSEMBLE_ROUNDS
     num_retrieved_models: int = NUM_RETRIEVED_MODELS
     num_parallel_solutions: int = NUM_PARALLEL_SOLUTIONS
-    max_full_cycles: int = 3
+    max_full_cycles: int = 2
     execution_timeout: int = EXECUTION_TIMEOUT
     llm_config: LLMConfig | None = None
     interrupt_points: list[str] = field(default_factory=list)

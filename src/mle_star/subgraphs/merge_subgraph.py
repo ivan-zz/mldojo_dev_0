@@ -21,10 +21,12 @@ from src.mle_star.state.shared import (
     simulate_delay,
     log_node_event,
     normalize_score,
+    failure_score,
     random_pass,
     random_score,
     call_llm,
     _default_llm_config,
+    LLMConfig,
     parse_code_block,
     parse_json_response,
     format_direction,
@@ -77,14 +79,23 @@ def A3__merge(state: MergeState) -> MergeState:
 
     try:
         config = _default_llm_config()
-        response = call_llm(prompt, response_format="code", config=config)
+        merge_config = LLMConfig(
+            provider=config.provider,
+            model=config.model,
+            base_url=config.base_url,
+            api_key=config.api_key,
+            temperature=config.temperature,
+            max_tokens=16384,
+            timeout=config.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=merge_config)
         merged_code = parse_code_block(response)
         state["merged_code"] = merged_code
         log_node_event("A3__merge", "success", {"merged_code_len": len(merged_code)})
     except Exception as e:
         log_node_event("A3__merge", "llm_error", {"error": str(e)[:200]})
         state["merged_code"] = ""
-        state["score"] = 1.0
+        state["score"] = failure_score(state.get("metric_direction", "minimize"))
         state["status"] = "llm_failed"
 
     return state
@@ -158,13 +169,22 @@ def A12__fix_leakage_merge(state: MergeState) -> MergeState:
 
     try:
         config = _default_llm_config()
+        code_config = LLMConfig(
+            provider=config.provider,
+            model=config.model,
+            base_url=config.base_url,
+            api_key=config.api_key,
+            temperature=config.temperature,
+            max_tokens=8192,
+            timeout=config.timeout,
+        )
         prompt = DATA_LEAKAGE_CORRECT_PROMPT.format(
             task_desc=task_desc,
             metric=metric,
             leakage_issues="Data leakage in merged code",
             code=merged_code,
         )
-        response = call_llm(prompt, response_format="code", config=config)
+        response = call_llm(prompt, response_format="code", config=code_config)
         fixed_code = parse_code_block(response)
         state["merged_code"] = fixed_code
         log_node_event("A12__fix_leakage_merge", "fixed", {"code_len": len(fixed_code)})
@@ -202,7 +222,8 @@ def eval_merge(state: MergeState) -> MergeState:
     datasets = state.get("datasets", [])
 
     if not merged_code.strip():
-        state["score"] = 1.0
+        metric_direction = state.get("metric_direction", "minimize")
+        state["score"] = failure_score(metric_direction)
         state["status"] = "ok"
         state["execution_output"] = ""
         state["execution_error"] = "Empty merged code"
@@ -221,6 +242,7 @@ def eval_merge(state: MergeState) -> MergeState:
 
     state["execution_output"] = result.get("stdout", "")
     state["execution_error"] = result.get("stderr", "")
+    state["execution_exit_code"] = result.get("exit_code", -1)
 
     if (
         result["status"] == "error"
@@ -229,12 +251,14 @@ def eval_merge(state: MergeState) -> MergeState:
     ):
         attempts = state.get("attempts", 0)
         if attempts >= 3:
-            state["score"] = 1.0
+            metric_direction = state.get("metric_direction", "minimize")
+            state["score"] = failure_score(metric_direction)
             state["status"] = "ok"
         else:
             state["status"] = "crashed"
     else:
-        state["score"] = result.get("score", 1.0)
+        metric_direction = state.get("metric_direction", "minimize")
+        state["score"] = result.get("score", failure_score(metric_direction))
         state["status"] = "ok"
 
     return state
@@ -261,6 +285,8 @@ def A11__debug_merge(state: MergeState) -> MergeState:
 
     merged_code = state.get("merged_code", "")
     error_message = state.get("execution_error", "unknown error")
+    execution_output = state.get("execution_output", "")
+    exit_code = state.get("execution_exit_code", -1)
     task_desc = state.get("task_desc", "ML regression task")
     metric = state.get("score_function_desc", "RMSLE")
 
@@ -272,15 +298,24 @@ def A11__debug_merge(state: MergeState) -> MergeState:
 
     try:
         config = _default_llm_config()
-        stderr = error_message[:1000] if error_message else ""
+        debug_config = LLMConfig(
+            provider=config.provider,
+            model=config.model,
+            base_url=config.base_url,
+            api_key=config.api_key,
+            temperature=config.temperature,
+            max_tokens=16384,
+            timeout=config.timeout,
+        )
         prompt = DEBUG_PROMPT.format(
             task_desc=task_desc,
             metric=metric,
             code=merged_code,
+            exit_code=exit_code,
             error_message=f"[{error_type}] {error_message}\nSuggestion: {error_suggestion}",
-            stderr=stderr,
+            stdout_output=execution_output[:500] if execution_output else "(no output)",
         )
-        response = call_llm(prompt, response_format="code", config=config)
+        response = call_llm(prompt, response_format="code", config=debug_config)
         fixed_code = parse_code_block(response)
         state["merged_code"] = fixed_code
         log_node_event(

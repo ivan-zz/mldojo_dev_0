@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "exit_code": 0,
+  "score": 0.5,
+  "timeout": 180,
+  "stdout_len": 34,
+  "stderr_len": 0,
+  "stdout_preview": "Final Validation Performance: 0.5\n",
+  "stderr_preview": "",
+  "traceback": "",
+  "work_dir": null
+}

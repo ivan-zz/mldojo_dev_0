@@ -31,19 +31,19 @@ def _env_float(key: str, default: float) -> float:
 
 # ── Algorithm 2: Outer loop (ablation) ─────────────────────────────────
 
-MAX_OUTER_STEPS = _env_int("MLE_MAX_OUTER_STEPS", 4)
+MAX_OUTER_STEPS = _env_int("MLE_MAX_OUTER_STEPS", 2)
 
 # ── Algorithm 2: Inner loop (refinement) ────────────────────────────────
 
-MAX_INNER_STEPS = _env_int("MLE_MAX_INNER_STEPS", 4)
+MAX_INNER_STEPS = _env_int("MLE_MAX_INNER_STEPS", 2)
 
 # ── Debug retry limits ──────────────────────────────────────────────────
 
-MAX_DEBUG_RETRIES = _env_int("MLE_MAX_DEBUG_RETRIES", 3)
+MAX_DEBUG_RETRIES = _env_int("MLE_MAX_DEBUG_RETRIES", 2)
 
 # ── Ablation variant execution ───────────────────────────────────────────
 
-MAX_ABLATION_DEBUG_RETRIES = _env_int("MLE_MAX_ABLATION_DEBUG_RETRIES", 3)
+MAX_ABLATION_DEBUG_RETRIES = _env_int("MLE_MAX_ABLATION_DEBUG_RETRIES", 2)
 
 # ── Parallel pipeline fan-out (D15) ─────────────────────────────────────
 
@@ -51,15 +51,15 @@ NUM_PARALLEL_SOLUTIONS = _env_int("MLE_NUM_PARALLEL_SOLUTIONS", 2)
 
 # ── Algorithm 3: Ensemble rounds ────────────────────────────────────────
 
-MAX_ENSEMBLE_ROUNDS = _env_int("MLE_MAX_ENSEMBLE_ROUNDS", 5)
+MAX_ENSEMBLE_ROUNDS = _env_int("MLE_MAX_ENSEMBLE_ROUNDS", 2)
 
 # ── Ensemble debug retry limit ──────────────────────────────────────────
 
-MAX_ENSEMBLE_DEBUG_RETRIES = _env_int("MLE_MAX_ENSEMBLE_DEBUG_RETRIES", 3)
+MAX_ENSEMBLE_DEBUG_RETRIES = _env_int("MLE_MAX_ENSEMBLE_DEBUG_RETRIES", 2)
 
 # ── Leakage fix retry limit ─────────────────────────────────────────────
 
-MAX_LEAKAGE_FIX_RETRIES = _env_int("MLE_MAX_LEAKAGE_FIX_RETRIES", 5)
+MAX_LEAKAGE_FIX_RETRIES = _env_int("MLE_MAX_LEAKAGE_FIX_RETRIES", 2)
 
 # ── Subsampling threshold ────────────────────────────────────────────────
 
@@ -67,11 +67,11 @@ SUBSAMPLING_THRESHOLD = _env_int("MLE_SUBSAMPLING_THRESHOLD", 30000)
 
 # ── Execution ────────────────────────────────────────────────────────────
 
-EXECUTION_TIMEOUT = _env_int("MLE_EXECUTION_TIMEOUT", 900)
+EXECUTION_TIMEOUT = _env_int("MLE_EXECUTION_TIMEOUT", 180)
 
-EXECUTION_MAX_MEMORY_MB = _env_int("MLE_EXECUTION_MAX_MEMORY_MB", 4096)
+EXECUTION_MAX_MEMORY_MB = _env_int("MLE_EXECUTION_MAX_MEMORY_MB", 0)
 
-EXECUTION_MAX_CPU_SECONDS = _env_int("MLE_EXECUTION_MAX_CPU_SECONDS", 1800)
+EXECUTION_MAX_CPU_SECONDS = _env_int("MLE_EXECUTION_MAX_CPU_SECONDS", 300)
 
 # ── Mock mode ────────────────────────────────────────────────────────────
 
@@ -103,4 +103,4 @@ DOCKER_MEMORY_LIMIT_MB = _env_int("MLE_DOCKER_MEMORY_LIMIT_MB", 4096)
 
 # ── Search ──────────────────────────────────────────────────────────────────
 
-NUM_RETRIEVED_MODELS = _env_int("MLE_NUM_RETRIEVED_MODELS", 4)
+NUM_RETRIEVED_MODELS = _env_int("MLE_NUM_RETRIEVED_MODELS", 2)

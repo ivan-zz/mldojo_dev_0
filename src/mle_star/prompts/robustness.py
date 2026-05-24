@@ -51,10 +51,7 @@ ORIGINAL CODE:
 
 Fix the code to remove all data usage violations. Only use train.csv for training and test.csv for prediction (no target values). Remove any references to external data sources.
 
-Return ONLY the fixed code in a Python code block:
-```python
-# fixed code here
-```
+Return ONLY the fixed code. Do NOT wrap it in markdown code fences. Start your response directly with "import" or "from".
 
 The fixed code must still be a complete, runnable Python script that prints:
 Final Validation Performance: <score>"""
@@ -124,10 +121,7 @@ IMPORTANT: The fixed code must be a COMPLETE, runnable Python script that:
 3. Uses proper 5-fold cross-validation with the {metric} metric
 4. Prints: Final Validation Performance: <score>
 
-Return ONLY the fixed code:
-```python
-# fixed code here
-```"""
+Return ONLY the fixed code. Do NOT wrap it in markdown code fences. Start your response directly with "import" or "from"."""
 
 DEBUG_PROMPT = """You are an expert Python/ML debugger. The following ML pipeline code crashed during execution. Fix the error.
 
@@ -139,14 +133,16 @@ CODE THAT CRASHED:
 {code}
 ```
 
+EXIT CODE: {exit_code}
+
 ERROR MESSAGE:
 ```
 {error_message}
 ```
 
-STDERR OUTPUT:
+PROGRAM OUTPUT (stdout, possibly partial if timed out):
 ```
-{stderr}
+{stdout_output}
 ```
 
 Fix the code to resolve the error. Common issues:
@@ -155,6 +151,7 @@ Fix the code to resolve the error. Common issues:
 3. NaN/inf values: handle missing data properly
 4. Indexing errors: incorrect column references
 5. Type errors: incorrect data types
+6. Timeout: code runs too slow — simplify model, reduce CV folds, or use smaller hyperparameters
 
 IMPORTANT: The fixed code must be a COMPLETE, runnable Python script that:
 1. Uses only sklearn and standard libraries
@@ -162,10 +159,7 @@ IMPORTANT: The fixed code must be a COMPLETE, runnable Python script that:
 3. Uses 5-fold cross-validation with the {metric} metric
 4. Prints: Final Validation Performance: <score>
 
-Return ONLY the fixed code:
-```python
-# fixed code here
-```"""
+Return ONLY the fixed code. Do NOT wrap it in markdown code fences. Start your response directly with "import" or "from"."""
 
 ERROR_CLASSIFIER_PROMPT = """You are an expert Python/ML error classifier. Classify the following error into one of these categories:
 

@@ -31,8 +31,7 @@ INSTRUCTIONS:
 6. All scripts must use 5-fold cross-validation and print: Final Validation Performance: <score>
 7. For multi-target prediction, handle each target appropriately.
 
-Return a JSON object with the following format:
-```json
+Return a JSON object with the following format (return ONLY valid JSON, do NOT wrap in markdown code fences):
 {{
   "ablation_scripts": [
     {{
@@ -47,7 +46,6 @@ Return a JSON object with the following format:
     }}
   ]
 }}
-```
 
 Generate ablation scripts for the 2-3 most impactful blocks. Focus on blocks NOT previously studied."""
 
@@ -102,11 +100,9 @@ INSTRUCTIONS:
 3. Extract the EXACT code for that block from the solution — it must be an exact substring.
 4. Draft an initial improvement plan (p_0) describing specific improvements for this block.
 
-Return a JSON object:
-```json
+Return a JSON object (return ONLY valid JSON, do NOT wrap in markdown code fences):
 {{
   "target_block_name": "name of the selected block",
   "target_block_code": "exact code from the solution for this block",
   "initial_plan": "detailed improvement plan for this block"
-}}
-```"""
+}}"""

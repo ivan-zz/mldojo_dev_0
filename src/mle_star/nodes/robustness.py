@@ -30,6 +30,7 @@ from src.mle_star.state.shared import (
     random_pass,
     call_llm,
     _default_llm_config,
+    LLMConfig,
     parse_code_block,
     parse_json_response,
 )
@@ -199,10 +200,11 @@ def A11__debug_ensemble(state: dict) -> dict:
     current_code = state.get("current_ensemble_code", "")
     task_desc = state.get("task_desc", "ML task")
     metric = _infer_metric(state)
-    stderr = state.get("stderr", "")
+    execution_output = state.get("execution_output", "")
+    exit_code = state.get("execution_exit_code", -1)
 
     error_class = _classify_error(
-        str(execution_error), stderr=stderr, code=current_code
+        str(execution_error), stderr=execution_output, code=current_code
     )
     error_type = error_class["error_type"]
     error_suggestion = error_class["suggestion"]
@@ -211,13 +213,25 @@ def A11__debug_ensemble(state: dict) -> dict:
         task_desc=task_desc,
         metric=metric,
         code=current_code,
+        exit_code=exit_code,
         error_message=f"[{error_type}] {execution_error}\nSuggestion: {error_suggestion}",
-        stderr=stderr,
+        stdout_output=execution_output[:500] if execution_output else "(no output)",
     )
 
     try:
-        config = _default_llm_config()
-        response = call_llm(prompt, response_format="code", config=config)
+        base_config = _default_llm_config()
+        ensemble_debug_config = LLMConfig(
+            provider=base_config.provider,
+            model=base_config.model,
+            base_url=base_config.base_url,
+            api_key=base_config.api_key,
+            temperature=base_config.temperature,
+            max_tokens=16384,
+            timeout=base_config.timeout,
+        )
+        response = call_llm(
+            prompt, response_format="code", config=ensemble_debug_config
+        )
         debugged_code = parse_code_block(response)
 
         log_node_event(
@@ -363,8 +377,17 @@ def A12__fix_leakage_ensemble(state: dict) -> dict:
     )
 
     try:
-        config = _default_llm_config()
-        response = call_llm(prompt, response_format="code", config=config)
+        base_config = _default_llm_config()
+        leakage_fix_config = LLMConfig(
+            provider=base_config.provider,
+            model=base_config.model,
+            base_url=base_config.base_url,
+            api_key=base_config.api_key,
+            temperature=base_config.temperature,
+            max_tokens=16384,
+            timeout=base_config.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=leakage_fix_config)
         fixed_code = parse_code_block(response)
 
         log_node_event(

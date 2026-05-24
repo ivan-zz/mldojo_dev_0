@@ -19,6 +19,8 @@ from src.mle_star.state.shared import (
     random_pass,
     normalize_score,
     call_llm,
+    _default_llm_config,
+    LLMConfig,
     parse_code_block,
     replace_code_block,
     format_direction,
@@ -95,7 +97,17 @@ def A7__implement(state: dict) -> dict:
     )
 
     try:
-        response = call_llm(prompt, response_format="code")
+        base_config = _default_llm_config()
+        code_config = LLMConfig(
+            provider=base_config.provider,
+            model=base_config.model,
+            base_url=base_config.base_url,
+            api_key=base_config.api_key,
+            temperature=base_config.temperature,
+            max_tokens=8192,
+            timeout=base_config.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=code_config)
         refined_code = parse_code_block(response)
     except Exception as e:
         log_node_event(
@@ -108,6 +120,13 @@ def A7__implement(state: dict) -> dict:
     candidate_solution = replace_code_block(
         current_solution, target_block, refined_code
     )
+
+    if candidate_solution == current_solution:
+        log_node_event(
+            "A7__implement",
+            "replace_failed_unchanged",
+            {"target_block_preview": target_block[:80]},
+        )
 
     log_node_event(
         "A7__implement",
@@ -227,6 +246,7 @@ def eval_refinement(state: dict) -> dict:
             "execution_output": stdout,
             "execution_error": error_msg,
             "execution_score": None,
+            "execution_exit_code": result.get("exit_code", -1),
             "debug_retries": debug_retries,
             "status": "error",
         }
@@ -410,10 +430,11 @@ def A11__debug_refine(state: dict) -> dict:
     metric = state.get("metric", "accuracy")
 
     execution_output = state.get("execution_output", "")
-    stderr = state.get("execution_error", "")
+    execution_error = state.get("execution_error", "unknown error")
+    exit_code = state.get("execution_exit_code", -1)
 
     error_class = _classify_error(
-        str(execution_error), stderr=stderr, code=refined_code
+        str(execution_error), stderr=execution_output, code=refined_code
     )
     error_type = error_class["error_type"]
     error_suggestion = error_class["suggestion"]
@@ -422,12 +443,23 @@ def A11__debug_refine(state: dict) -> dict:
         task_desc=task_desc,
         metric=metric,
         code=refined_code,
+        exit_code=exit_code,
         error_message=f"[{error_type}] {execution_error}\nSuggestion: {error_suggestion}",
-        stderr=stderr,
+        stdout_output=execution_output,
     )
 
     try:
-        response = call_llm(prompt, response_format="code")
+        base_config_dbg = _default_llm_config()
+        debug_config = LLMConfig(
+            provider=base_config_dbg.provider,
+            model=base_config_dbg.model,
+            base_url=base_config_dbg.base_url,
+            api_key=base_config_dbg.api_key,
+            temperature=base_config_dbg.temperature,
+            max_tokens=8192,
+            timeout=base_config_dbg.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=debug_config)
         fixed_code = parse_code_block(response)
         candidate_solution = replace_code_block(
             current_solution, target_block, fixed_code

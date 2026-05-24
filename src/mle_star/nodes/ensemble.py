@@ -18,6 +18,7 @@ from src.mle_star.state.shared import (
     normalize_score,
     call_llm,
     _default_llm_config,
+    LLMConfig,
     parse_code_block,
     format_direction,
 )
@@ -227,7 +228,17 @@ def _A10__implement_ensemble_real(state: dict) -> dict:
     )
 
     try:
-        raw_response = call_llm(prompt, config=_default_llm_config())
+        base_config = _default_llm_config()
+        ensemble_config = LLMConfig(
+            provider=base_config.provider,
+            model=base_config.model,
+            base_url=base_config.base_url,
+            api_key=base_config.api_key,
+            temperature=base_config.temperature,
+            max_tokens=16384,
+            timeout=base_config.timeout,
+        )
+        raw_response = call_llm(prompt, config=ensemble_config)
         code = parse_code_block(raw_response)
     except Exception as e:
         log_node_event(

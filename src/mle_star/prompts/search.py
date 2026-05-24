@@ -61,6 +61,8 @@ REQUIREMENTS:
 
 For multi-target prediction targets, train separate models for each target and average the scores.
 
+IMPORTANT: Return ONLY the raw Python code. Do NOT wrap it in markdown code fences (no ```python or ```). Start your response directly with "import" or "from".
+
 The script must be a COMPLETE, self-contained Python file that can be run directly.
 Start with imports and end with printing the final score.
 
@@ -92,5 +94,7 @@ REQUIREMENTS FOR THE MERGED SCRIPT:
 6. For multi-target prediction, handle each target appropriately
 7. The merged script should be a COMPLETE, self-contained Python file
 8. Aim to improve upon the base script's performance by leveraging both approaches
+
+IMPORTANT: Return ONLY the raw Python code. Do NOT wrap it in markdown code fences (no ```python or ```). Start your response directly with "import" or "from".
 
 Focus on genuine improvements: better feature engineering, model averaging, or combining different model strengths. Do NOT simply copy the base script."""

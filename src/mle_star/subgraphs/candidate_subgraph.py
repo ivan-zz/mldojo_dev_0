@@ -22,8 +22,10 @@ from src.mle_star.state.shared import (
     random_score,
     random_pass,
     normalize_score,
+    failure_score,
     call_llm,
     _default_llm_config,
+    LLMConfig,
     parse_code_block,
     parse_json_response,
     format_direction,
@@ -91,8 +93,17 @@ def A2__generate(state: CandidateState) -> CandidateState:
     )
 
     try:
-        config = _default_llm_config()
-        response = call_llm(prompt, response_format="code", config=config)
+        base_config = _default_llm_config()
+        gen_config = LLMConfig(
+            provider=base_config.provider,
+            model=base_config.model,
+            base_url=base_config.base_url,
+            api_key=base_config.api_key,
+            temperature=base_config.temperature,
+            max_tokens=8192,
+            timeout=base_config.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=gen_config)
         code = parse_code_block(response)
         state["code"] = code
         log_node_event(
@@ -103,7 +114,7 @@ def A2__generate(state: CandidateState) -> CandidateState:
             "A2__generate", "llm_error", {"model": model_name, "error": str(e)[:200]}
         )
         state["code"] = ""
-        state["score"] = 1.0
+        state["score"] = failure_score(state.get("metric_direction", "minimize"))
         state["status"] = "llm_failed"
 
     return state
@@ -183,7 +194,16 @@ def A13__fix_usage(state: CandidateState) -> CandidateState:
             violations="Data usage violation detected",
             code=code,
         )
-        response = call_llm(prompt, response_format="code", config=config)
+        code_config = LLMConfig(
+            provider=config.provider,
+            model=config.model,
+            base_url=config.base_url,
+            api_key=config.api_key,
+            temperature=config.temperature,
+            max_tokens=8192,
+            timeout=config.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=code_config)
         fixed_code = parse_code_block(response)
         state["code"] = fixed_code
         log_node_event("A13__fix_usage", "fixed", {"code_len": len(fixed_code)})
@@ -275,7 +295,16 @@ def A12__fix_leakage(state: CandidateState) -> CandidateState:
             leakage_issues="Data leakage detected",
             code=code,
         )
-        response = call_llm(prompt, response_format="code", config=config)
+        code_config = LLMConfig(
+            provider=config.provider,
+            model=config.model,
+            base_url=config.base_url,
+            api_key=config.api_key,
+            temperature=config.temperature,
+            max_tokens=8192,
+            timeout=config.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=code_config)
         fixed_code = parse_code_block(response)
         state["code"] = fixed_code
         log_node_event("A12__fix_leakage", "fixed", {"code_len": len(fixed_code)})
@@ -314,7 +343,7 @@ def eval_candidate(state: CandidateState) -> CandidateState:
     metric_direction = state.get("metric_direction", "minimize")
 
     if not code.strip():
-        state["score"] = 1.0
+        state["score"] = failure_score(metric_direction)
         state["status"] = "ok"
         state["execution_output"] = ""
         state["execution_error"] = "Empty code"
@@ -337,6 +366,7 @@ def eval_candidate(state: CandidateState) -> CandidateState:
 
     state["execution_output"] = result.get("stdout", "")
     state["execution_error"] = result.get("stderr", "")
+    state["execution_exit_code"] = result.get("exit_code", -1)
 
     if (
         result["status"] == "error"
@@ -345,12 +375,12 @@ def eval_candidate(state: CandidateState) -> CandidateState:
     ):
         attempts = state.get("attempts", 0)
         if attempts >= 3:
-            state["score"] = 1.0
+            state["score"] = failure_score(metric_direction)
             state["status"] = "ok"
         else:
             state["status"] = "crashed"
     else:
-        state["score"] = result.get("score", 1.0)
+        state["score"] = result.get("score", failure_score(metric_direction))
         state["status"] = "ok"
 
     return state
@@ -378,6 +408,8 @@ def A11__debug(state: CandidateState) -> CandidateState:
 
     code = state.get("code", "")
     error_message = state.get("execution_error", "unknown error")
+    execution_output = state.get("execution_output", "")
+    exit_code = state.get("execution_exit_code", -1)
     task_desc = state.get("task_desc", "ML regression task")
     metric = state.get("score_function_desc", "RMSLE")
 
@@ -389,15 +421,24 @@ def A11__debug(state: CandidateState) -> CandidateState:
 
     try:
         config = _default_llm_config()
-        stderr = error_message[:1000] if error_message else ""
         prompt = DEBUG_PROMPT.format(
             task_desc=task_desc,
             metric=metric,
             code=code,
+            exit_code=exit_code,
             error_message=f"[{error_type}] {error_message}\nSuggestion: {error_suggestion}",
-            stderr=stderr,
+            stdout_output=execution_output[:500] if execution_output else "(no output)",
         )
-        response = call_llm(prompt, response_format="code", config=config)
+        debug_config = LLMConfig(
+            provider=config.provider,
+            model=config.model,
+            base_url=config.base_url,
+            api_key=config.api_key,
+            temperature=config.temperature,
+            max_tokens=8192,
+            timeout=config.timeout,
+        )
+        response = call_llm(prompt, response_format="code", config=debug_config)
         fixed_code = parse_code_block(response)
         state["code"] = fixed_code
         log_node_event(

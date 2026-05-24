@@ -1,0 +1,12 @@
+{
+  "status": "timeout",
+  "exit_code": -1,
+  "score": null,
+  "timeout": 1,
+  "stdout_len": 0,
+  "stderr_len": 36,
+  "stdout_preview": "",
+  "stderr_preview": "Execution timed out after 1 seconds\n",
+  "traceback": "",
+  "work_dir": null
+}

@@ -19,12 +19,15 @@ Falls back to subprocess execution if Docker is unavailable.
 """
 
 import ast
+import json
 import os
+import re
 import resource
 import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from typing import Dict, List, Optional, Tuple
 
 from src.mle_star.config import (
@@ -63,6 +66,54 @@ def _extract_traceback(stderr: str) -> str:
     if idx == -1:
         return ""
     return stderr[idx:]
+
+
+def _log_execution_artifact(
+    user_code: str,
+    wrapped_code: str,
+    result: Dict,
+    timeout: int,
+    work_dir: str | None = None,
+):
+    """Write execution code and output to run_dir/exec_log/ for debugging."""
+    run_dir = get_run_dir()
+    exec_log_dir = os.path.join(run_dir, "exec_log")
+    os.makedirs(exec_log_dir, exist_ok=True)
+
+    ts = int(time.time() * 1000)
+    status = result.get("status", "unknown")
+    exit_code = result.get("exit_code", -1)
+    score = result.get("score")
+
+    prefix = f"{ts}_{status}_exit{exit_code}"
+
+    try:
+        with open(os.path.join(exec_log_dir, f"{prefix}_user_code.py"), "w") as f:
+            f.write(user_code if user_code else "# (empty)")
+
+        with open(os.path.join(exec_log_dir, f"{prefix}_wrapped.py"), "w") as f:
+            f.write(wrapped_code if wrapped_code else "# (empty)")
+
+        with open(os.path.join(exec_log_dir, f"{prefix}_result.json"), "w") as f:
+            json.dump(
+                {
+                    "status": status,
+                    "exit_code": exit_code,
+                    "score": score,
+                    "timeout": timeout,
+                    "stdout_len": len(result.get("stdout", "")),
+                    "stderr_len": len(result.get("stderr", "")),
+                    "stdout_preview": result.get("stdout", "")[:2000],
+                    "stderr_preview": result.get("stderr", "")[:2000],
+                    "traceback": result.get("traceback", ""),
+                    "work_dir": work_dir,
+                },
+                f,
+                indent=2,
+                default=str,
+            )
+    except Exception as e:
+        log_node_event("_log_execution_artifact", "error", {"error": str(e)[:200]})
 
 
 def _set_resource_limits():
@@ -338,6 +389,7 @@ def _execute_subprocess(
     """Execute wrapped code in subprocess (internal helper).
 
     Returns Dict with keys: stdout, stderr, exit_code, score, status, traceback.
+    Uses Popen to capture partial stdout/stderr on timeout.
     """
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", delete=False, prefix="mle_eval_"
@@ -345,35 +397,55 @@ def _execute_subprocess(
         f.write(wrapped_code)
         script_path = f.name
 
+    cwd = work_dir or os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
+
+    stdout = ""
+    stderr = ""
+    exit_code = -1
+    status = "error"
+
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             [sys.executable, script_path],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            cwd=work_dir
-            or os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                )
-            ),
-            env={**os.environ, "PYTHONPATH": os.environ.get("PYTHONPATH", "")},
+            cwd=cwd,
+            env={
+                **os.environ,
+                "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
+                "PYTHONUNBUFFERED": "1",
+            },
             preexec_fn=_set_resource_limits,
         )
-        stdout = result.stdout
-        stderr = result.stderr
-        exit_code = result.returncode if result.returncode is not None else -1
-
-    except subprocess.TimeoutExpired:
-        log_node_event("_execute_subprocess", "timeout", {"timeout": timeout})
-        return {
-            "stdout": "",
-            "stderr": f"Execution timed out after {timeout} seconds",
-            "exit_code": -1,
-            "score": None,
-            "status": "timeout",
-            "traceback": "",
-        }
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            exit_code = proc.returncode if proc.returncode is not None else -1
+            status = "ok" if exit_code == 0 else "error"
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                partial_stdout, partial_stderr = proc.communicate(timeout=5)
+                stdout = partial_stdout if partial_stdout else ""
+                stderr = partial_stderr if partial_stderr else ""
+            except Exception:
+                stdout = ""
+                stderr = ""
+            exit_code = -1
+            status = "timeout"
+            stderr = f"Execution timed out after {timeout} seconds\n{stderr}"
+            log_node_event(
+                "_execute_subprocess",
+                "timeout",
+                {
+                    "timeout": timeout,
+                    "partial_stdout_len": len(stdout),
+                    "partial_stderr_len": len(stderr),
+                    "partial_stdout_preview": stdout[:500],
+                },
+            )
     except Exception as e:
         log_node_event("_execute_subprocess", "error", {"error": str(e)[:200]})
         return {
@@ -400,7 +472,9 @@ def _execute_subprocess(
             "score": score,
             "stdout_len": len(stdout),
             "stderr_len": len(stderr),
-            "status": "ok" if exit_code == 0 and score is not None else "error",
+            "stdout_preview": stdout[:500] if stdout else "",
+            "stderr_preview": stderr[:500] if stderr else "",
+            "status": "ok" if exit_code == 0 and score is not None else status,
         },
     )
 
@@ -410,7 +484,7 @@ def _execute_subprocess(
             "stderr": stderr,
             "exit_code": exit_code,
             "score": None,
-            "status": "error",
+            "status": status if status == "timeout" else "error",
             "traceback": _extract_traceback(stderr),
         }
 
@@ -463,7 +537,11 @@ ALLOWED_OPEN_PATTERNS = [
 def _strip_markdown_fences(code: str) -> str:
     """Strip markdown code fences from LLM output before AST parsing or execution.
 
-    Handles ```python ... ```, ``` ... ```, and bare code.
+    Handles:
+      - ```python ... ```  (standard)
+      - ``` ... ```         (no language tag)
+      - Unclosed fences: ```python ...  (LLM truncation)
+      - Bare code           (no fences at all)
     """
     if not code or not code.strip():
         return code
@@ -492,6 +570,19 @@ def _strip_markdown_fences(code: str) -> str:
                 inner = inner[len(lang_prefix) :].strip()
                 break
         return inner
+    # Handle unclosed fences: ```python\n... (no closing ```)
+    if text.startswith("```"):
+        inner = text[3:]
+        stripped_lang = False
+        for lang_prefix in ("python", "py"):
+            if inner.startswith(lang_prefix):
+                inner = inner[len(lang_prefix) :].strip()
+                stripped_lang = True
+                break
+        if not stripped_lang and (inner.startswith("\n") or inner.startswith("\r")):
+            inner = inner.strip()
+        if inner and not inner.startswith("```"):
+            return inner
     return code
 
 
@@ -676,6 +767,8 @@ def execute_code(
 
     exec_timeout = timeout or EXECUTION_TIMEOUT
 
+    code = _strip_markdown_fences(code)
+
     should_use_docker = use_docker if use_docker is not None else DOCKER_SANDBOX_ENABLED
 
     is_safe, reason = validate_code_safety(code)
@@ -726,7 +819,11 @@ def execute_code(
         user_code=code,
     )
 
-    return _execute_subprocess(wrapped_code, exec_timeout, work_dir)
+    result = _execute_subprocess(wrapped_code, exec_timeout, work_dir)
+
+    _log_execution_artifact(code, wrapped_code, result, exec_timeout, work_dir)
+
+    return result
 
 
 def _is_mock_mode():
@@ -770,6 +867,7 @@ def _eval_ensemble_mock(state: dict) -> dict:
         return {
             "execution_output": "",
             "execution_error": "Mock ensemble execution error",
+            "execution_exit_code": -1,
             "execution_score": None,
             "status": "error",
         }
@@ -843,6 +941,7 @@ def _eval_ensemble_real(state: dict) -> dict:
             return {
                 "execution_output": result.get("stdout", ""),
                 "execution_error": result.get("stderr", "Execution failed"),
+                "execution_exit_code": result.get("exit_code", -1),
                 "execution_score": None,
                 "status": "error",
             }
@@ -854,6 +953,7 @@ def _eval_ensemble_real(state: dict) -> dict:
         return {
             "execution_output": result.get("stdout", ""),
             "execution_error": result.get("stderr", "Execution failed"),
+            "execution_exit_code": result.get("exit_code", -1),
             "execution_score": None,
             "status": "error",
         }

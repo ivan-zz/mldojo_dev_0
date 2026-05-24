@@ -4,13 +4,79 @@ Version: 0.1.0
 Summary: Add your description here
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.28.1
 Requires-Dist: ipykernel>=7.2.0
 Requires-Dist: langchain>=1.2.15
 Requires-Dist: langchain-community>=0.4.1
+Requires-Dist: langchain-ollama>=1.1.0
 Requires-Dist: langchain-openai>=1.1.12
 Requires-Dist: langchain-tavily>=0.2.18
 Requires-Dist: langfuse>=4.2.0
 Requires-Dist: langgraph>=1.1.6
+Requires-Dist: langgraph-checkpoint-sqlite>=3.1.0
 Requires-Dist: pandas>=3.0.2
 Requires-Dist: python-dotenv>=1.2.2
+Requires-Dist: scikit-learn>=1.8.0
 Requires-Dist: tavily-python>=0.7.23
+
+3. Full Pipeline Dry Run (Mock Mode)
+Fast end-to-end with mock data:
+
+```bash
+cd /workspace/mldojo && .venv/bin/python main.py --mock --fast
+```
+
+This runs the full pipeline in mock mode (no LLM calls, no subprocess). Should complete in ~1 minute.
+
+---
+
+4. Real End-to-End (LLM + Execution)
+The full real test — requires LLM API access and sklearn:
+
+```bash
+cd /workspace/mldojo && .venv/bin/python main.py --task-desc input/description.md --fast
+```
+
+This will:
+- Call the LLM via Ollama Cloud to retrieve 4 sklearn models
+- Call the LLM to generate code for each model
+- Execute each candidate script in a subprocess
+- Run through the full search → ensemble → submission flow
+Estimated time: 10-30 minutes depending on LLM speed and number of models.
+
+
+---
+
+```bash
+.venv/bin/python main.py \
+  --task-desc input/description.md \
+  --num-parallel-solutions 2 \
+  --max-full-cycles 3
+```
+
+---
+
+Total LLM-heavy operations per full cycle with 2 parallel pipelines:
+- Search: 2 models × 2 pipelines = 4 A2__generate + 4 A13__check + 4 A12__check + eval/debug
+- Ablation: 2 outer × 1 ablation × 2 pipelines = 2 A4__generate_ablation + 2× eval/debug
+- Refinement: 2 outer × 2 inner = 4 A7__implement + 4× eval/debug per pipeline
+- Ensemble: 2 rounds
+- Leakage fixes: up to 2 retries per check
+The CLI invocation would be:
+
+```bash
+MLE_EXECUTION_MAX_CPU_SECONDS=1800 \
+MLE_EXECUTION_TIMEOUT=900 \
+MLE_MAX_OUTER_STEPS=2 \
+MLE_MAX_INNER_STEPS=2 \
+MLE_MAX_ENSEMBLE_ROUNDS=2 \
+MLE_NUM_RETRIEVED_MODELS=2 \
+MLE_MAX_DEBUG_RETRIES=2 \
+MLE_MAX_ABLATION_DEBUG_RETRIES=2 \
+MLE_MAX_ENSEMBLE_DEBUG_RETRIES=2 \
+MLE_MAX_LEAKAGE_FIX_RETRIES=2 \
+.venv/bin/python main.py \
+  --task-desc input/description.md \
+  --num-parallel-solutions 2 \
+  --max-full-cycles 2
+```

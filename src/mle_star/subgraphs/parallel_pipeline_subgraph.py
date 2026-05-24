@@ -71,7 +71,9 @@ def pipeline_flow_node(state: Dict) -> Dict:
     1. Opens a SubgraphSpan(f"pipeline_{i}") grouping span
     2. Invokes Alg1 graph inside SubgraphSpan("Algorithm_1")
     3. Maps Alg1 results via alg1_result_to_system
-    4. Invokes Alg2 (run_algorithm2) inside SubgraphSpan("Algorithm_2")
+    4. If Alg1 produced a valid solution (best_candidate has code),
+       invokes Alg2 (run_algorithm2) inside SubgraphSpan("Algorithm_2").
+       Otherwise, skips Alg2 and returns Alg1's result directly.
     5. Maps Alg2 results via alg2_result_to_system
     6. Returns result dict with best_solution, best_score, etc.
 
@@ -131,65 +133,95 @@ def pipeline_flow_node(state: Dict) -> Dict:
         alg1_sys_updates = alg1_result_to_system(alg1_result)
         best_solution = alg1_sys_updates.get("best_solution", "")
         best_score = alg1_sys_updates.get("best_score", 0)
+        metric_direction = state.get("metric_direction", "maximize")
 
-        alg2_state = {
-            "current_solution": best_solution,
-            "best_score": best_score,
-            "metric_direction": state.get("metric_direction", "maximize"),
-            "ablation_scripts": [],
-            "ablation_results_list": [],
-            "ablation_summaries": [],
-            "target_block": "",
-            "initial_plan": "",
-            "refined_blocks": [],
-            "current_plans": [],
-            "current_scores": [],
-            "refined_code": "",
-            "candidate_solution": "",
-            "execution_output": "",
-            "execution_error": None,
-            "execution_score": None,
-            "outer_step": 0,
-            "inner_step": 0,
-            "leakage_status": None,
-            "leakage_code_block": None,
-            "debug_history": [],
-            "security_violations": [],
-            "improved_solution": "",
-            "improved_score": 0,
-            "convergence_achieved": False,
-            "stage_history": [],
-            "status": "start",
-        }
+        # Guard: skip Alg2 if Alg1 produced no valid solution
+        alg1_status = alg1_result.get("status", "")
+        alg1_best = alg1_result.get("best_candidate", {})
+        alg1_has_solution = bool(
+            best_solution.strip()
+            and isinstance(alg1_best, dict)
+            and alg1_best.get("code")
+        )
 
-        with SubgraphSpan(
-            "Algorithm_2",
-            input_data={
-                "pipeline": i,
-                "best_score": best_score,
-                "phase": "ablation",
-            },
-        ) as alg2_span:
-            alg2_result = run_algorithm2(alg2_state)
-            alg2_span.set_output(
+        if not alg1_has_solution:
+            log_node_event(
+                "pipeline_flow",
+                "skip_alg2",
                 {
                     "pipeline": i,
-                    "status": alg2_result.get("status", ""),
-                    "improved_score": alg2_result.get("improved_score", 0),
-                }
+                    "reason": "alg1_no_valid_solution",
+                    "alg1_status": alg1_status,
+                    "best_score": best_score,
+                },
             )
-
-        # Use improved result if better (normalized), otherwise keep search result
-        improved_solution = alg2_result.get("improved_solution", "") or best_solution
-        improved_score = alg2_result.get("improved_score", 0)
-        metric_direction = state.get("metric_direction", "maximize")
-        if (
-            normalize_score(improved_score, metric_direction)
-            <= normalize_score(best_score, metric_direction)
-            and improved_solution != best_solution
-        ):
             improved_solution = best_solution
             improved_score = best_score
+            alg2_result = {
+                "status": "skipped",
+                "improved_score": 0,
+                "improved_solution": "",
+            }
+        else:
+            alg2_state = {
+                "current_solution": best_solution,
+                "best_score": best_score,
+                "metric_direction": metric_direction,
+                "ablation_scripts": [],
+                "ablation_results_list": [],
+                "ablation_summaries": [],
+                "target_block": "",
+                "initial_plan": "",
+                "refined_blocks": [],
+                "current_plans": [],
+                "current_scores": [],
+                "refined_code": "",
+                "candidate_solution": "",
+                "execution_output": "",
+                "execution_error": None,
+                "execution_score": None,
+                "outer_step": 0,
+                "inner_step": 0,
+                "leakage_status": None,
+                "leakage_code_block": None,
+                "debug_history": [],
+                "security_violations": [],
+                "improved_solution": "",
+                "improved_score": 0,
+                "convergence_achieved": False,
+                "stage_history": [],
+                "status": "start",
+            }
+
+            with SubgraphSpan(
+                "Algorithm_2",
+                input_data={
+                    "pipeline": i,
+                    "best_score": best_score,
+                    "phase": "ablation",
+                },
+            ) as alg2_span:
+                alg2_result = run_algorithm2(alg2_state)
+                alg2_span.set_output(
+                    {
+                        "pipeline": i,
+                        "status": alg2_result.get("status", ""),
+                        "improved_score": alg2_result.get("improved_score", 0),
+                    }
+                )
+
+            # Use improved result if better (normalized), otherwise keep search result
+            improved_solution = (
+                alg2_result.get("improved_solution", "") or best_solution
+            )
+            improved_score = alg2_result.get("improved_score", 0)
+            if (
+                normalize_score(improved_score, metric_direction)
+                <= normalize_score(best_score, metric_direction)
+                and improved_solution != best_solution
+            ):
+                improved_solution = best_solution
+                improved_score = best_score
 
         pipeline_span.set_output(
             {

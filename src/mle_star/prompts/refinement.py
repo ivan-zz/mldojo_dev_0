@@ -35,10 +35,7 @@ INSTRUCTIONS:
 5. For multi-target prediction, handle each target appropriately.
 6. Use only sklearn and standard libraries (numpy, pandas, scipy).
 
-Return ONLY the refined code block (not the full solution) in a Python code block:
-```python
-# refined version of the target block
-```"""
+Return ONLY the refined code block (not the full solution). Do NOT wrap it in markdown code fences. Start your response directly with the Python code:"""
 
 PLANNER_PROMPT = """You are an expert ML engineer planning the next refinement step for a machine learning pipeline.
 

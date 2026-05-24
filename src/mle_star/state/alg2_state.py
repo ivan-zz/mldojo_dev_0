@@ -114,6 +114,7 @@ class AblationVariantState(TypedDict):
     block_name: str
     execution_output: str
     execution_error: str | None
+    execution_exit_code: int
     execution_score: float | None
     attempts: int
     status: str

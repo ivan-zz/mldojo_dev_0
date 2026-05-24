@@ -997,6 +997,19 @@ def display_score(normalized_score: float, direction: str) -> float:
     return normalized_score
 
 
+def failure_score(metric_direction: str) -> float:
+    """Return a score representing complete failure for the given direction.
+
+    For 'minimize' (lower is better), returns inf (worst possible).
+    For 'maximize' (higher is better), returns 0.0 (worst possible).
+    After normalize_score(), both produce the smallest value,
+    ensuring failed candidates never beat real ones.
+    """
+    if metric_direction == "minimize":
+        return float("inf")
+    return 0.0
+
+
 def format_direction(metric_direction: str) -> str:
     """Convert metric_direction to a human-readable description for prompts.
 
@@ -1391,9 +1404,10 @@ def parse_json_response(raw: str) -> dict:
 
     Tries in order:
         1. Direct JSON parse
-        2. Extract from ```json ... ``` block
+        2. Extract from ```json ... ``` block (with flexible whitespace)
         3. Extract from ``` ... ``` block (any language)
-        4. Find first { ... } in text
+        4. Handle unclosed ```json ... (no closing ```)
+        5. Find first balanced { ... } using brace-depth tracking
 
     Args:
         raw: The raw LLM response text.
@@ -1416,17 +1430,17 @@ def parse_json_response(raw: str) -> dict:
     except _json.JSONDecodeError:
         pass
 
-    match = re.search(r"```(?:json)?\s*\n(.*?)\n```", text, re.DOTALL)
+    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", text, re.DOTALL)
     if match:
         try:
             return _json.loads(match.group(1).strip())
         except _json.JSONDecodeError:
             pass
 
-    match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
-    if match:
+    unclosed = re.search(r"```(?:json)?\s*\n(.*)", text, re.DOTALL)
+    if unclosed:
         try:
-            return _json.loads(match.group(0))
+            return _json.loads(unclosed.group(1).strip())
         except _json.JSONDecodeError:
             pass
 
@@ -1454,7 +1468,8 @@ def parse_code_block(raw: str) -> str:
     Tries in order:
         1. Extract from ```python ... ``` block
         2. Extract from ``` ... ``` block (any language or no language)
-        3. If the raw text looks like code (has import/def/class/if __name__),
+        3. Extract from unclosed ```python ... (LLM truncation)
+        4. If the raw text looks like code (has import/def/class/if __name__),
            return it as-is
 
     Args:
@@ -1486,6 +1501,16 @@ def parse_code_block(raw: str) -> str:
         ):
             pass
         return content
+
+    # Handle unclosed fences: ```python\n... (no closing ```)
+    # This occurs when LLM output is truncated or omits the closing fence.
+    match = re.search(r"```(?:python|py)\s*\n(.+)", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+
+    match = re.search(r"```\s*\n(.+)", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
 
     code_indicators = [
         "import ",
@@ -1629,7 +1654,8 @@ def fuzzy_replace(solution: str, old_block: str, new_block: str) -> str:
     """Fuzzy string replacement using difflib.
 
     Finds the closest match to old_block among the double-newline-separated
-    blocks in solution and replaces it.
+    blocks in solution and replaces it. Multiple fallback strategies are used
+    to tolerate code drift across refinement cycles.
 
     Args:
         solution: The full solution code.
@@ -1637,10 +1663,8 @@ def fuzzy_replace(solution: str, old_block: str, new_block: str) -> str:
         new_block: The replacement code.
 
     Returns:
-        The solution with the closest match replaced.
-
-    Raises:
-        ValueError: If no close match is found.
+        The solution with the closest match replaced, or the original
+        solution unchanged if no match could be found.
     """
     import difflib as _difflib
 
@@ -1651,15 +1675,38 @@ def fuzzy_replace(solution: str, old_block: str, new_block: str) -> str:
     matches = _difflib.get_close_matches(old_block.strip(), blocks, n=1, cutoff=0.6)
 
     if matches:
-        return solution.replace(matches[0], new_block, 1)
-
-    lines = solution.splitlines()
-    old_lines = old_block.strip().splitlines()
-    if len(old_lines) <= 2 or len(lines) <= len(old_lines):
-        raise ValueError(
-            f"Could not find matching code block in solution. "
-            f"Old block preview: {old_block[:100]}..."
+        matched = matches[0]
+        if old_block.strip() in matched:
+            return solution.replace(matched, new_block, 1)
+        matched_lines = matched.strip().splitlines()
+        old_lines = old_block.strip().splitlines()
+        if len(matched_lines) == len(old_lines):
+            sm = _difflib.SequenceMatcher(None, matched_lines, old_lines)
+            if sm.ratio() >= 0.8:
+                return solution.replace(matched, new_block, 1)
+        sm = _difflib.SequenceMatcher(
+            None, matched.splitlines(), old_block.strip().splitlines()
         )
+        if sm.ratio() >= 0.75:
+            return solution.replace(matched, new_block, 1)
+        s = _difflib.SequenceMatcher(
+            None,
+            matched.splitlines(),
+            old_lines if "old_lines" in dir() else old_block.strip().splitlines(),
+        )
+        if s.ratio() >= 0.75:
+            return solution.replace(matched, new_block, 1)
+
+    old_lines = old_block.strip().splitlines()
+    lines = solution.splitlines()
+
+    if len(old_lines) <= 2 or len(lines) <= len(old_lines):
+        log_node_event(
+            "fuzzy_replace",
+            "no_match",
+            {"reason": "block_too_short", "old_preview": old_block[:80]},
+        )
+        return solution
 
     s = _difflib.SequenceMatcher(None, lines, old_lines)
     match = s.find_longest_match(0, len(lines), 0, len(old_lines))
@@ -1670,7 +1717,39 @@ def fuzzy_replace(solution: str, old_block: str, new_block: str) -> str:
         )
         return "\n".join(result_lines)
 
-    raise ValueError(
-        f"Could not find matching code block in solution. "
-        f"Old block preview: {old_block[:100]}..."
+    first_old_line = old_lines[0].strip() if old_lines else ""
+    if first_old_line:
+        for idx, line in enumerate(lines):
+            if line.strip() == first_old_line:
+                best_end = idx
+                best_ratio = 0.0
+                for end in range(idx + 1, min(idx + len(old_lines) + 5, len(lines))):
+                    ratio = _difflib.SequenceMatcher(
+                        None,
+                        old_lines,
+                        lines[idx:end],
+                    ).ratio()
+                    if ratio > best_ratio:
+                        best_ratio = ratio
+                        best_end = end
+                if best_ratio >= 0.6 and best_end > idx:
+                    replacement_lines = new_block.splitlines()
+                    result_lines = lines[:idx] + replacement_lines + lines[best_end:]
+                    log_node_event(
+                        "fuzzy_replace",
+                        "first_line_match",
+                        {
+                            "old_preview": old_block[:80],
+                            "insert_at": idx,
+                            "replace_end": best_end,
+                            "ratio": round(best_ratio, 3),
+                        },
+                    )
+                    return "\n".join(result_lines)
+
+    log_node_event(
+        "fuzzy_replace",
+        "no_match",
+        {"reason": "all_strategies_failed", "old_preview": old_block[:80]},
     )
+    return solution

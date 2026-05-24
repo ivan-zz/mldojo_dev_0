@@ -310,7 +310,8 @@ class TestPromptTemplates:
             metric="RMSLE",
             code="import numpy as np",
             error_message="ValueError",
-            stderr="traceback",
+            exit_code=1,
+            stdout_output="",
         )
         assert "ValueError" in prompt
         assert "RMSLE" in prompt
@@ -624,7 +625,7 @@ class TestLLMFailedRouting:
             )
             result = A2__generate(dict(state))
             assert result["status"] == "llm_failed"
-            assert result["score"] == 1.0
+            assert result["score"] == float("inf")
 
     def test_s7_67_a3_merge_sets_llm_failed_on_error(self):
         with (
@@ -657,4 +658,4 @@ class TestLLMFailedRouting:
             )
             result = A3__merge(dict(state))
             assert result["status"] == "llm_failed"
-            assert result["score"] == 1.0
+            assert result["score"] == float("inf")

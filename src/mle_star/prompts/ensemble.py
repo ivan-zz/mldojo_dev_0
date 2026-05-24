@@ -60,7 +60,4 @@ INSTRUCTIONS:
 4. For weighted averaging, weight models by their inverse validation scores (better models get more weight).
 5. Ensure all data handling (missing values, feature alignment) is consistent across models.
 
-Return ONLY the complete Python script in a code block:
-```python
-# ensemble implementation
-```"""
+Return ONLY the complete Python script. Do NOT wrap it in markdown code fences. Start your response directly with "import" or "from"."""
